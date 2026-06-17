@@ -16,12 +16,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -31,16 +31,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 
 /**
- * Tap-to-talk skeleton (PROJECT_BRIEF.md §9, steps 1a–1d). One screen that:
- *  - stores the Anthropic API key in the Keystore (1b),
- *  - dictates a message via [SpeechToText] / `RECORD_AUDIO` (1d), and
- *  - sends it to /v1/messages and shows the reply (1c).
+ * Tap-to-talk skeleton (PROJECT_BRIEF.md §9, steps 1a–1d). Two destinations behind
+ * a Compose [NavHost]:
+ *  - [MainScreen] ("main") — dictate via [SpeechToText] / `RECORD_AUDIO` (1d) and
+ *    send to /v1/messages, showing the reply (1c).
+ *  - [SettingsScreen] ("settings") — Anthropic API key (1b) and the theme choice.
  *
  * TTS (1e) and real invocation come in later steps; for now you tap the mic (or
  * type) and tap send.
@@ -52,18 +55,44 @@ class MainActivity : ComponentActivity() {
         val settings = SettingsStore(this)
         val client = AnthropicClient(apiKeyProvider = { keyStore.apiKey })
         setContent {
-            // Hoisted here so changing it recomposes the whole tree (the theme).
-            var themeMode by remember { mutableStateOf(settings.themeMode) }
-            HeyClaudeTheme(themeMode) {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            HeyClaudeApp(keyStore = keyStore, settings = settings, client = client)
+        }
+    }
+}
+
+@Composable
+private fun HeyClaudeApp(
+    keyStore: ApiKeyStore,
+    settings: SettingsStore,
+    client: AnthropicClient,
+) {
+    // App-level state, hoisted above the NavHost so both destinations agree:
+    //  - themeMode drives the theme (changing it recomposes the whole tree),
+    //  - keySaved gates Send on the talk screen and is updated from Settings.
+    var themeMode by remember { mutableStateOf(settings.themeMode) }
+    var keySaved by remember { mutableStateOf(keyStore.hasKey()) }
+
+    HeyClaudeTheme(themeMode) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            val navController = rememberNavController()
+            NavHost(navController = navController, startDestination = "main") {
+                composable("main") {
                     MainScreen(
-                        keyStore = keyStore,
                         client = client,
+                        keySaved = keySaved,
+                        onOpenSettings = { navController.navigate("settings") },
+                    )
+                }
+                composable("settings") {
+                    SettingsScreen(
+                        keyStore = keyStore,
                         themeMode = themeMode,
                         onThemeModeChange = {
                             themeMode = it
                             settings.themeMode = it
                         },
+                        onKeySavedChange = { keySaved = it },
+                        onBack = { navController.popBackStack() },
                     )
                 }
             }
@@ -73,10 +102,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun MainScreen(
-    keyStore: ApiKeyStore,
     client: AnthropicClient,
-    themeMode: ThemeMode,
-    onThemeModeChange: (ThemeMode) -> Unit,
+    keySaved: Boolean,
+    onOpenSettings: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -86,8 +114,6 @@ private fun MainScreen(
         onDispose { stt.destroy() }
     }
 
-    var keyInput by remember { mutableStateOf(keyStore.apiKey.orEmpty()) }
-    var keySaved by remember { mutableStateOf(keyStore.hasKey()) }
     var prompt by remember { mutableStateOf("Hello, Claude — reply in one short sentence.") }
     var reply by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
@@ -151,49 +177,20 @@ private fun MainScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("HeyClaude", style = MaterialTheme.typography.headlineMedium)
-
-        // --- Settings: API key (step 1b) ---
-        Text("Settings", style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(
-            value = keyInput,
-            onValueChange = { keyInput = it },
-            label = { Text("Anthropic API key") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
+        Row(
             modifier = Modifier.fillMaxWidth(),
-        )
-        Button(
-            onClick = {
-                keyStore.apiKey = keyInput
-                keySaved = keyStore.hasKey()
-            },
-            enabled = keyInput.isNotBlank(),
-        ) { Text("Save key") }
-        Text(
-            text = if (keySaved) "Key saved ✓" else "No key saved",
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        // --- Appearance: dark / light / follow-device theme ---
-        Text("Appearance", style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ThemeMode.entries.forEach { mode ->
-                val label = when (mode) {
-                    ThemeMode.SYSTEM -> "Device"
-                    ThemeMode.LIGHT -> "Light"
-                    ThemeMode.DARK -> "Dark"
-                }
-                // Selected mode is filled; the rest are outlined.
-                if (mode == themeMode) {
-                    Button(onClick = { onThemeModeChange(mode) }) { Text(label) }
-                } else {
-                    OutlinedButton(onClick = { onThemeModeChange(mode) }) { Text(label) }
-                }
-            }
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("HeyClaude", style = MaterialTheme.typography.headlineMedium)
+            TextButton(onClick = onOpenSettings) { Text("⚙ Settings") }
         }
 
-        HorizontalDivider()
+        if (!keySaved) {
+            Text(
+                "No API key yet — open Settings to add one.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
 
         // --- Test the model turn (steps 1c–1d) ---
         Text("Test the model turn", style = MaterialTheme.typography.titleMedium)
