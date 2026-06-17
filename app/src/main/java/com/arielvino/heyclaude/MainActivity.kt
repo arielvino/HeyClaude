@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -51,6 +53,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         val keyStore = ApiKeyStore(this)
         val settings = SettingsStore(this)
         val client = AnthropicClient(apiKeyProvider = { keyStore.apiKey })
@@ -73,9 +76,17 @@ private fun HeyClaudeApp(
     var keySaved by remember { mutableStateOf(keyStore.hasKey()) }
 
     HeyClaudeTheme(themeMode) {
+        // App is edge-to-edge (forced on API 35+); the Surface fills the whole
+        // window so its background paints behind the system bars, while
+        // safeDrawingPadding keeps content out from under them — applied once
+        // here so every NavHost destination inherits it.
         Surface(modifier = Modifier.fillMaxSize()) {
             val navController = rememberNavController()
-            NavHost(navController = navController, startDestination = "main") {
+            NavHost(
+                navController = navController,
+                startDestination = "main",
+                modifier = Modifier.safeDrawingPadding(),
+            ) {
                 composable("main") {
                     MainScreen(
                         client = client,
