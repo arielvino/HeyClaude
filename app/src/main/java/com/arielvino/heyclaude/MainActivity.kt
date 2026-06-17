@@ -77,14 +77,34 @@ private fun MainScreen(keyStore: ApiKeyStore, client: AnthropicClient) {
     var loading by remember { mutableStateOf(false) }
     var listening by remember { mutableStateOf(false) }
 
-    // Start dictation; the transcript replaces whatever is in the message field.
+    // Sends [text] as one turn and shows Claude's reply. Shared by the Send button
+    // and STT auto-send, so both paths behave identically.
+    fun sendToClaude(text: String) {
+        if (text.isBlank() || loading) return
+        loading = true
+        reply = ""
+        scope.launch {
+            reply = try {
+                client.sendMessage(text)
+            } catch (e: Exception) {
+                "Error: ${e.message}"
+            }
+            loading = false
+        }
+    }
+
+    // Start dictation; the transcript replaces the message field, then auto-sends
+    // when SpeechRecognizer finalizes the utterance (onResults) — no second tap.
     fun beginListening() {
         listening = true
         prompt = ""
         reply = ""
         stt.start(
             onPartial = { prompt = it },
-            onResult = { prompt = it },
+            onResult = { transcript ->
+                prompt = transcript
+                if (keySaved) sendToClaude(transcript)
+            },
             onError = { msg -> reply = "Mic: $msg" },
             onDone = { listening = false },
         )
@@ -156,18 +176,7 @@ private fun MainScreen(keyStore: ApiKeyStore, client: AnthropicClient) {
             ) { Text(if (listening) "■ Stop" else "🎤 Speak") }
 
             Button(
-                onClick = {
-                    loading = true
-                    reply = ""
-                    scope.launch {
-                        reply = try {
-                            client.sendMessage(prompt)
-                        } catch (e: Exception) {
-                            "Error: ${e.message}"
-                        }
-                        loading = false
-                    }
-                },
+                onClick = { sendToClaude(prompt) },
                 enabled = !loading && !listening && keySaved && prompt.isNotBlank(),
             ) { Text(if (loading) "Sending…" else "Send to Claude") }
         }

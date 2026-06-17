@@ -172,6 +172,14 @@ personal use.
          results stream live) → existing Send path POSTs it to Claude.
    - 1e. ⬅️ **NEXT** — Add TTS (`TextToSpeech`): speak Claude's reply aloud so a
          full tap → speak → hear loop closes.
+   *Open UX fixes (reported 2026-06-17, 1d works "pretty much"):*
+   *(a) ✅ **Auto-send on end-of-speech** — the transcript routes through the shared
+   `sendToClaude()` (also used by the Send button), so dictation fires the turn with
+   no second tap. `SpeechToText` keeps the last partial and uses it as the result
+   when the recognizer ends with an empty final or NO_MATCH/SPEECH_TIMEOUT (common
+   on-device), so end-of-speech reliably sends whatever was heard.*
+   *(b) **Render the reply as Markdown**, not raw text — the model returns
+   Markdown and it currently shows literally (needs a Markdown composable).*
 2. **Tool-use loop (the differentiator)** — `tool_use`/`tool_result` round-trip;
    first tools: set alarm/timer + open app.
 3. **Default-assistant integration** — register as assistant; gesture → voice mode.

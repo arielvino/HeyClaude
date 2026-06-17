@@ -49,6 +49,12 @@ class SpeechToText(context: Context) {
             return
         }
 
+        // The latest non-blank partial for this session. End-of-speech is a reliable
+        // signal, but the final result that follows it is often empty (or arrives as
+        // NO_MATCH/SPEECH_TIMEOUT) on on-device recognizers — so we keep the best
+        // partial and treat it as the result, so a real utterance always sends.
+        var lastPartial = ""
+
         r.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
@@ -57,16 +63,25 @@ class SpeechToText(context: Context) {
             override fun onEndOfSpeech() {}
 
             override fun onPartialResults(partialResults: Bundle?) {
-                firstHypothesis(partialResults)?.let(onPartial)
+                firstHypothesis(partialResults)?.let {
+                    lastPartial = it
+                    onPartial(it)
+                }
             }
 
             override fun onResults(results: Bundle?) {
-                onResult(firstHypothesis(results).orEmpty())
+                onResult(firstHypothesis(results) ?: lastPartial)
                 onDone()
             }
 
             override fun onError(error: Int) {
-                onError(errorText(error))
+                val endedAfterSpeech = error == SpeechRecognizer.ERROR_NO_MATCH ||
+                    error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                if (endedAfterSpeech && lastPartial.isNotBlank()) {
+                    onResult(lastPartial)
+                } else {
+                    onError(errorText(error))
+                }
                 onDone()
             }
 
