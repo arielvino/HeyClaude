@@ -1,10 +1,15 @@
 package com.arielvino.heyclaude
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,26 +18,32 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 
 /**
- * Tap-to-talk skeleton (PROJECT_BRIEF.md §9, steps 1a–1c). One screen that:
- *  - stores the Anthropic API key in the Keystore (1b), and
- *  - sends a message to /v1/messages and shows the reply (1c).
+ * Tap-to-talk skeleton (PROJECT_BRIEF.md §9, steps 1a–1d). One screen that:
+ *  - stores the Anthropic API key in the Keystore (1b),
+ *  - dictates a message via [SpeechToText] / `RECORD_AUDIO` (1d), and
+ *  - sends it to /v1/messages and shows the reply (1c).
  *
- * STT/TTS/invocation come in later steps; for now you type and tap.
+ * TTS (1e) and real invocation come in later steps; for now you tap the mic (or
+ * type) and tap send.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,12 +63,50 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun MainScreen(keyStore: ApiKeyStore, client: AnthropicClient) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val stt = remember { SpeechToText(context) }
+    DisposableEffect(Unit) {
+        onDispose { stt.destroy() }
+    }
 
     var keyInput by remember { mutableStateOf(keyStore.apiKey.orEmpty()) }
     var keySaved by remember { mutableStateOf(keyStore.hasKey()) }
     var prompt by remember { mutableStateOf("Hello, Claude — reply in one short sentence.") }
     var reply by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
+    var listening by remember { mutableStateOf(false) }
+
+    // Start dictation; the transcript replaces whatever is in the message field.
+    fun beginListening() {
+        listening = true
+        prompt = ""
+        reply = ""
+        stt.start(
+            onPartial = { prompt = it },
+            onResult = { prompt = it },
+            onError = { msg -> reply = "Mic: $msg" },
+            onDone = { listening = false },
+        )
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) beginListening() else reply = "Microphone permission denied."
+    }
+
+    fun onMicTap() {
+        if (listening) {
+            stt.stop()
+            return
+        }
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) beginListening() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
 
     Column(
         modifier = Modifier
@@ -92,29 +141,36 @@ private fun MainScreen(keyStore: ApiKeyStore, client: AnthropicClient) {
 
         HorizontalDivider()
 
-        // --- Test the model turn (step 1c) ---
+        // --- Test the model turn (steps 1c–1d) ---
         Text("Test the model turn", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = prompt,
             onValueChange = { prompt = it },
-            label = { Text("Message") },
+            label = { Text(if (listening) "Listening…" else "Message") },
             modifier = Modifier.fillMaxWidth(),
         )
-        Button(
-            onClick = {
-                loading = true
-                reply = ""
-                scope.launch {
-                    reply = try {
-                        client.sendMessage(prompt)
-                    } catch (e: Exception) {
-                        "Error: ${e.message}"
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(
+                onClick = { onMicTap() },
+                enabled = stt.isAvailable && !loading,
+            ) { Text(if (listening) "■ Stop" else "🎤 Speak") }
+
+            Button(
+                onClick = {
+                    loading = true
+                    reply = ""
+                    scope.launch {
+                        reply = try {
+                            client.sendMessage(prompt)
+                        } catch (e: Exception) {
+                            "Error: ${e.message}"
+                        }
+                        loading = false
                     }
-                    loading = false
-                }
-            },
-            enabled = !loading && keySaved,
-        ) { Text(if (loading) "Sending…" else "Send to Claude") }
+                },
+                enabled = !loading && !listening && keySaved && prompt.isNotBlank(),
+            ) { Text(if (loading) "Sending…" else "Send to Claude") }
+        }
 
         if (reply.isNotEmpty()) {
             Text("Reply", style = MaterialTheme.typography.titleMedium)

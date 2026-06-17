@@ -161,12 +161,17 @@ personal use.
 
 1. **Tap-to-talk skeleton** — one screen, one button: record → STT → Claude →
    TTS. No gestures, no wake word, no service. Proves the full loop.
-   - 1a. Project + `RECORD_AUDIO`/`INTERNET` permissions, single Compose screen.
-   - 1b. Settings screen → API key → `EncryptedSharedPreferences`.
-   - 1c. `AnthropicClient`: non-streaming POST to `/v1/messages` with correct
-         headers; button sends hardcoded text → reply on screen (proves network + key).
-   - 1d. Add STT (`SpeechRecognizer` first) → real transcript replaces hardcoded.
-   - 1e. Add TTS — tap, speak, hear Claude answer.
+   *Progress (2026-06-17): 1a–1d done; **1e is the current target.***
+   - 1a. ✅ Single Compose screen + `INTERNET`; `RECORD_AUDIO` + recognizer
+         `<queries>` added in 1d.
+   - 1b. ✅ Settings screen → API key → `EncryptedSharedPreferences`.
+   - 1c. ✅ `AnthropicClient`: non-streaming POST to `/v1/messages` with correct
+         headers; button sends typed text → reply on screen (proves network + key).
+   - 1d. ✅ STT via `SpeechRecognizer` (`SpeechToText.kt`): mic button →
+         `RECORD_AUDIO` runtime grant → dictation fills the message field (partial
+         results stream live) → existing Send path POSTs it to Claude.
+   - 1e. ⬅️ **NEXT** — Add TTS (`TextToSpeech`): speak Claude's reply aloud so a
+         full tap → speak → hear loop closes.
 2. **Tool-use loop (the differentiator)** — `tool_use`/`tool_result` round-trip;
    first tools: set alarm/timer + open app.
 3. **Default-assistant integration** — register as assistant; gesture → voice mode.

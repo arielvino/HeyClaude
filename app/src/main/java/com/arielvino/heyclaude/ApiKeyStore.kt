@@ -15,6 +15,11 @@ import androidx.core.content.edit
  */
 class ApiKeyStore(context: Context) {
 
+    // androidx.security:security-crypto is deprecated by Google with no drop-in
+    // Jetpack replacement, but still functional and encrypts the key at rest via
+    // the Android Keystore — the deliberate choice in PROJECT_BRIEF.md §6. Suppress
+    // the deprecation rather than migrate until a supported replacement exists.
+    @Suppress("DEPRECATION")
     private val prefs: SharedPreferences = run {
         val appContext = context.applicationContext
         val masterKey = MasterKey.Builder(appContext)
