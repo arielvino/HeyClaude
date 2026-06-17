@@ -49,11 +49,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val keyStore = ApiKeyStore(this)
+        val settings = SettingsStore(this)
         val client = AnthropicClient(apiKeyProvider = { keyStore.apiKey })
         setContent {
-            MaterialTheme {
+            // Hoisted here so changing it recomposes the whole tree (the theme).
+            var themeMode by remember { mutableStateOf(settings.themeMode) }
+            HeyClaudeTheme(themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MainScreen(keyStore = keyStore, client = client)
+                    MainScreen(
+                        keyStore = keyStore,
+                        client = client,
+                        themeMode = themeMode,
+                        onThemeModeChange = {
+                            themeMode = it
+                            settings.themeMode = it
+                        },
+                    )
                 }
             }
         }
@@ -61,7 +72,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun MainScreen(keyStore: ApiKeyStore, client: AnthropicClient) {
+private fun MainScreen(
+    keyStore: ApiKeyStore,
+    client: AnthropicClient,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -158,6 +174,24 @@ private fun MainScreen(keyStore: ApiKeyStore, client: AnthropicClient) {
             text = if (keySaved) "Key saved ✓" else "No key saved",
             style = MaterialTheme.typography.bodySmall,
         )
+
+        // --- Appearance: dark / light / follow-device theme ---
+        Text("Appearance", style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ThemeMode.entries.forEach { mode ->
+                val label = when (mode) {
+                    ThemeMode.SYSTEM -> "Device"
+                    ThemeMode.LIGHT -> "Light"
+                    ThemeMode.DARK -> "Dark"
+                }
+                // Selected mode is filled; the rest are outlined.
+                if (mode == themeMode) {
+                    Button(onClick = { onThemeModeChange(mode) }) { Text(label) }
+                } else {
+                    OutlinedButton(onClick = { onThemeModeChange(mode) }) { Text(label) }
+                }
+            }
+        }
 
         HorizontalDivider()
 
