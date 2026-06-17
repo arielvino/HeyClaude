@@ -5,7 +5,7 @@
 > ariel's checkout, branch handling) lives in `.claude/skills/heyclaude/SKILL.md`.
 >
 > Repo origin: `https://github.com/arielvino/HeyClaude`
-> Package: `com.arielvino.heyclaude` · minSdk 29 · targetSdk 36 · Kotlin/Gradle
+> Package: `com.arielvino.heyclaude` · minSdk 29 · targetSdk 37 · Kotlin/Gradle
 
 ---
 
@@ -162,9 +162,15 @@ personal use.
 1. **Tap-to-talk skeleton** — one screen, one button: record → STT → Claude →
    TTS. No gestures, no wake word, no service. Proves the full loop.
    *Progress (2026-06-17): 1a–1d done; **1e is the current target.***
-   - 1a. ✅ Single Compose screen + `INTERNET`; `RECORD_AUDIO` + recognizer
-         `<queries>` added in 1d.
-   - 1b. ✅ Settings screen → API key → `EncryptedSharedPreferences`.
+   - 1a. ✅ Compose UI shell — a `NavHost` whose home is the **Talk** screen (a
+         centered, circular push-to-talk mic showing the resolved transcript + reply)
+         with a collapsible `ModalNavigationDrawer` holding **Settings** (+ future
+         entries); separate **Settings** screen. Light/dark/device theme switcher
+         (`SettingsStore` + `HeyClaudeTheme`); edge-to-edge via `enableEdgeToEdge` +
+         one `safeDrawingPadding` at the NavHost. `INTERNET`; `RECORD_AUDIO` +
+         recognizer `<queries>` added in 1d.
+   - 1b. ✅ Settings screen (reached from the drawer menu) → API key →
+         `EncryptedSharedPreferences`.
    - 1c. ✅ `AnthropicClient`: non-streaming POST to `/v1/messages` with correct
          headers; button sends typed text → reply on screen (proves network + key).
    - 1d. ✅ STT via `SpeechRecognizer` (`SpeechToText.kt`): mic button →
