@@ -5,10 +5,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Required on API 30+ so SpeechRecognizer can resolve the recognition service. -->
+    <!-- Required on API 30+ so SpeechRecognizer and TextToSpeech can resolve their services. -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
     </queries>
 

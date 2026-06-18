@@ -19,8 +19,14 @@ class SettingsStore(context: Context) {
             ?: ThemeMode.SYSTEM
         set(value) = prefs.edit { putString(KEY_THEME, value.name) }
 
+    /** Speak Claude's reply aloud via TTS. */
+    var talkback: Boolean
+        get() = prefs.getBoolean(KEY_TALKBACK, true)
+        set(value) = prefs.edit { putBoolean(KEY_TALKBACK, value) }
+
     private companion object {
         const val PREFS_FILE = "heyclaude_prefs"
         const val KEY_THEME = "theme_mode"
+        const val KEY_TALKBACK = "talkback"
     }
 }

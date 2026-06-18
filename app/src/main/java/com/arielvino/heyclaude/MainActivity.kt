@@ -83,6 +83,7 @@ private fun HeyClaudeApp(
     //  - keySaved gates Send on the talk screen and is updated from Settings.
     var themeMode by remember { mutableStateOf(settings.themeMode) }
     var keySaved by remember { mutableStateOf(keyStore.hasKey()) }
+    var talkback by remember { mutableStateOf(settings.talkback) }
 
     HeyClaudeTheme(themeMode) {
         // App is edge-to-edge (forced on API 35+); the Surface fills the whole
@@ -100,6 +101,7 @@ private fun HeyClaudeApp(
                     TalkScreen(
                         client = client,
                         keySaved = keySaved,
+                        talkback = talkback,
                         onOpenSettings = { navController.navigate("settings") },
                     )
                 }
@@ -110,6 +112,11 @@ private fun HeyClaudeApp(
                         onThemeModeChange = {
                             themeMode = it
                             settings.themeMode = it
+                        },
+                        talkback = talkback,
+                        onTalkbackChange = {
+                            talkback = it
+                            settings.talkback = it
                         },
                         onKeySavedChange = { keySaved = it },
                         onBack = { navController.popBackStack() },
@@ -124,14 +131,19 @@ private fun HeyClaudeApp(
 private fun TalkScreen(
     client: AnthropicClient,
     keySaved: Boolean,
+    talkback: Boolean,
     onOpenSettings: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     val stt = remember { SpeechToText(context) }
+    val tts = remember { Tts(context) }
     DisposableEffect(Unit) {
-        onDispose { stt.destroy() }
+        onDispose {
+            stt.destroy()
+            tts.shutdown()
+        }
     }
 
     var prompt by remember { mutableStateOf("") }
@@ -152,6 +164,7 @@ private fun TalkScreen(
                 "Error: ${e.message}"
             }
             loading = false
+            if (talkback) tts.speak(reply)
         }
     }
 
@@ -161,6 +174,7 @@ private fun TalkScreen(
         listening = true
         prompt = ""
         reply = ""
+        tts.stop() // barge-in: don't talk over the user
         stt.start(
             onPartial = { prompt = it },
             onResult = { transcript ->

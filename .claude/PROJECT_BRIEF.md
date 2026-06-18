@@ -161,7 +161,7 @@ personal use.
 
 1. **Tap-to-talk skeleton** — one screen, one button: record → STT → Claude →
    TTS. No gestures, no wake word, no service. Proves the full loop.
-   *Progress (2026-06-17): 1a–1d done; **1e is the current target.***
+   *Progress (2026-06-17): 1a–1e done; **step 2 (tool-use loop) is next.***
    - 1a. ✅ Compose UI shell — a `NavHost` whose home is the **Talk** screen (a
          centered, circular push-to-talk mic showing the resolved transcript + reply)
          with a collapsible `ModalNavigationDrawer` holding **Settings** (+ future
@@ -170,14 +170,17 @@ personal use.
          one `safeDrawingPadding` at the NavHost. `INTERNET`; `RECORD_AUDIO` +
          recognizer `<queries>` added in 1d.
    - 1b. ✅ Settings screen (reached from the drawer menu) → API key →
-         `EncryptedSharedPreferences`.
+         `EncryptedSharedPreferences`. Collapsible sections: API key, Appearance
+         (theme), Sound (mic beeps + talkback toggles, persisted in `SettingsStore`).
    - 1c. ✅ `AnthropicClient`: non-streaming POST to `/v1/messages` with correct
          headers; button sends typed text → reply on screen (proves network + key).
    - 1d. ✅ STT via `SpeechRecognizer` (`SpeechToText.kt`): mic button →
          `RECORD_AUDIO` runtime grant → dictation fills the message field (partial
          results stream live) → existing Send path POSTs it to Claude.
-   - 1e. ⬅️ **NEXT** — Add TTS (`TextToSpeech`): speak Claude's reply aloud so a
-         full tap → speak → hear loop closes.
+   - 1e. ✅ TTS (`Tts.kt`, Android `TextToSpeech`) speaks Claude's reply aloud,
+         gated by the **Talkback** sound setting — closes the tap → speak → hear loop.
+         Mic start/finish beeps (`MicTone`, `ToneGenerator`) gated by **Microphone
+         sound**.
    *Open UX fixes (reported 2026-06-17, 1d works "pretty much"):*
    *(a) ✅ **Auto-send on end-of-speech** — the transcript routes through the shared
    `sendToClaude()` (also used by the Send button), so dictation fires the turn with
