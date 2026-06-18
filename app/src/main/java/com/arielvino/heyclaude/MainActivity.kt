@@ -65,9 +65,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val keyStore = ApiKeyStore(this)
         val settings = SettingsStore(this)
+        val capabilityStore = CapabilityStore(this)
         val client = AnthropicClient(apiKeyProvider = { keyStore.apiKey })
         setContent {
-            HeyClaudeApp(keyStore = keyStore, settings = settings, client = client)
+            HeyClaudeApp(
+                keyStore = keyStore,
+                settings = settings,
+                capabilityStore = capabilityStore,
+                client = client,
+            )
         }
     }
 }
@@ -76,6 +82,7 @@ class MainActivity : ComponentActivity() {
 private fun HeyClaudeApp(
     keyStore: ApiKeyStore,
     settings: SettingsStore,
+    capabilityStore: CapabilityStore,
     client: AnthropicClient,
 ) {
     // App-level state, hoisted above the NavHost so all destinations agree:
@@ -100,9 +107,24 @@ private fun HeyClaudeApp(
                 composable("talk") {
                     TalkScreen(
                         client = client,
+                        capabilityStore = capabilityStore,
                         keySaved = keySaved,
                         talkback = talkback,
                         onOpenSettings = { navController.navigate("settings") },
+                        onOpenCapabilities = { navController.navigate("capabilities") },
+                        onOpenPermissions = { navController.navigate("permissions") },
+                    )
+                }
+                composable("capabilities") {
+                    CapabilitiesScreen(
+                        capabilityStore = capabilityStore,
+                        onOpenPermissions = { navController.navigate("permissions") },
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+                composable("permissions") {
+                    PermissionsScreen(
+                        onBack = { navController.popBackStack() },
                     )
                 }
                 composable("settings") {
@@ -130,15 +152,19 @@ private fun HeyClaudeApp(
 @Composable
 private fun TalkScreen(
     client: AnthropicClient,
+    capabilityStore: CapabilityStore,
     keySaved: Boolean,
     talkback: Boolean,
     onOpenSettings: () -> Unit,
+    onOpenCapabilities: () -> Unit,
+    onOpenPermissions: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     val stt = remember { SpeechToText(context) }
     val tts = remember { Tts(context) }
+    val deviceActions = remember { DeviceActions(context) }
     DisposableEffect(Unit) {
         onDispose {
             stt.destroy()
@@ -151,15 +177,28 @@ private fun TalkScreen(
     var loading by remember { mutableStateOf(false) }
     var listening by remember { mutableStateOf(false) }
 
-    // Sends [text] as one turn and shows Claude's reply. Called by the STT auto-send
-    // path once the recognizer finalizes the utterance.
+    // The effective capability set for a turn: app-enabled AND every required runtime
+    // permission granted (brief §2). Recomputed per send so toggling a capability or
+    // granting a permission takes effect on the next utterance. None of the seed
+    // capabilities need a runtime permission, so `granted` is empty today.
+    fun effectiveCapabilityIds(): Set<String> {
+        val granted = context.grantedAmong(Capabilities.allRequiredPermissions)
+        return Capabilities.ALL
+            .filter { capabilityStore.isEnabled(it) && it.permissionSatisfied(granted) }
+            .map { it.id }
+            .toSet()
+    }
+
+    // Sends [text] as one turn (running the tool loop) and shows Claude's reply. Called
+    // by the STT auto-send path once the recognizer finalizes the utterance.
     fun sendToClaude(text: String) {
         if (text.isBlank() || loading) return
         loading = true
         reply = ""
+        val toolKit = buildToolKit(deviceActions, effectiveCapabilityIds())
         scope.launch {
             reply = try {
-                client.sendMessage(text)
+                client.sendMessage(text, toolKit = toolKit, system = SYSTEM_PROMPT)
             } catch (e: Exception) {
                 "Error: ${e.message}"
             }
@@ -217,6 +256,24 @@ private fun TalkScreen(
                 )
                 HorizontalDivider()
                 NavigationDrawerItem(
+                    label = { Text("Capabilities") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onOpenCapabilities()
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                )
+                NavigationDrawerItem(
+                    label = { Text("Permissions") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onOpenPermissions()
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                )
+                NavigationDrawerItem(
                     label = { Text("Settings") },
                     selected = false,
                     onClick = {
@@ -225,7 +282,7 @@ private fun TalkScreen(
                     },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                 )
-                // Future menu entries (history, tools, …) go here.
+                // Future menu entries (history, …) go here.
             }
         },
     ) {

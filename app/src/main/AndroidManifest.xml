@@ -5,13 +5,23 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Required on API 30+ so SpeechRecognizer and TextToSpeech can resolve their services. -->
+    <!-- Normal (install-time) permission required by the AlarmClock SET_ALARM /
+         SET_TIMER intents used by the set_alarm / set_timer tools. Auto-granted, so
+         it doesn't gate a Capability or appear on the Permissions screen. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+
+    <!-- Required on API 30+ so SpeechRecognizer and TextToSpeech can resolve their
+         services, and so the open_app tool can enumerate launchable apps by name. -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
         </intent>
     </queries>
 
