@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Metadata for the stub HeyClaudeRecognitionService. RecognitionService requires this
+  meta-data block to be parsed by the system; settingsActivity simply points at our main
+  screen. The service itself does no real recognition (the session uses SpeechRecognizer).
+-->
+<recognition-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.arielvino.heyclaude.MainActivity" />

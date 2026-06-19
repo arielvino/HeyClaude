@@ -38,12 +38,71 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Eligible as the device assistant app (brief §3, step 3): the assist
+                 gesture (ASSIST) and the voice button (VOICE_COMMAND) launch us
+                 straight into listening mode. The user still picks HeyClaude as the
+                 assistant in system settings (Settings screen deep-links there). -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
+
+        <!-- HeyClaude as the device's own assistant (VoiceInteractionService). Once the
+             user picks HeyClaude in Settings → Default assistant app, the assist gesture /
+             power-button hold / lock-screen voice-assist routes here instead of to an
+             activity, and the system shows our session window OVER the keyguard — the
+             capability the LockRelayActivity probe validated. Three components are wired
+             by the @xml/interaction_service metadata:
+               • this VoiceInteractionService (the registered, always-resident assistant),
+               • HeyClaudeSessionService (spawns a session per invocation),
+               • HeyClaudeRecognitionService (required recognitionService attribute; a stub
+                 here — real STT runs through SpeechRecognizer inside the session).
+             BIND_VOICE_INTERACTION is a system-only permission, so only the framework can
+             bind these. -->
+        <service
+            android:name=".HeyClaudeInteractionService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/interaction_service" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".HeyClaudeSessionService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+
+        <!-- Stub RecognitionService: exists only to satisfy the required recognitionService
+             attribute on the voice-interaction metadata. HeyClaude does its real speech-to-
+             text via SpeechRecognizer inside the session, not through this service, so its
+             onStartListening immediately reports an error. -->
+        <service
+            android:name=".HeyClaudeRecognitionService"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.speech"
+                android:resource="@xml/recognition_service" />
+        </service>
 
     </application>
 

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Voice-interaction metadata for HeyClaudeInteractionService — what makes HeyClaude a
+  selectable device assistant (Settings → Apps → Default apps → Default assistant app).
+
+    sessionService     — required; the service that spawns a VoiceInteractionSession per
+                         invocation (our listening UI + Claude pipeline).
+    recognitionService — required by the framework parser; points at our stub
+                         RecognitionService. Real STT runs through SpeechRecognizer inside
+                         the session, not this service.
+    supportsAssist                          — eligible for the assist gesture / power-button hold.
+    supportsLaunchVoiceAssistFromKeyguard   — may be summoned from the lock screen, so the
+                                              session window shows over the keyguard (the
+                                              behaviour the LockRelayActivity probe proved).
+-->
+<voice-interaction-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.arielvino.heyclaude.HeyClaudeSessionService"
+    android:recognitionService="com.arielvino.heyclaude.HeyClaudeRecognitionService"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true" />

@@ -1,6 +1,7 @@
 package com.arielvino.heyclaude
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -33,6 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,9 +62,17 @@ import kotlinx.coroutines.launch
  * type) and tap send.
  */
 class MainActivity : ComponentActivity() {
+
+    // Bumped each time we're launched via the assist gesture / voice button so the
+    // Talk screen can auto-start listening (default-assistant hands-free path, brief
+    // §3). A counter (not a Boolean) so a fresh assist invoke re-triggers even if the
+    // value didn't otherwise change; read in composition, so it survives recomposition.
+    private val assistLaunch = mutableStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (isAssistIntent(intent)) assistLaunch.value++
         val keyStore = ApiKeyStore(this)
         val settings = SettingsStore(this)
         val capabilityStore = CapabilityStore(this)
@@ -73,9 +83,21 @@ class MainActivity : ComponentActivity() {
                 settings = settings,
                 capabilityStore = capabilityStore,
                 client = client,
+                assistLaunch = assistLaunch.value,
             )
         }
     }
+
+    // singleTask reuses this instance, so an assist invoke while we're already open
+    // arrives here rather than via a new onCreate.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (isAssistIntent(intent)) assistLaunch.value++
+    }
+
+    private fun isAssistIntent(intent: Intent?): Boolean =
+        intent?.action == Intent.ACTION_ASSIST || intent?.action == Intent.ACTION_VOICE_COMMAND
 }
 
 @Composable
@@ -84,6 +106,7 @@ private fun HeyClaudeApp(
     settings: SettingsStore,
     capabilityStore: CapabilityStore,
     client: AnthropicClient,
+    assistLaunch: Int,
 ) {
     // App-level state, hoisted above the NavHost so all destinations agree:
     //  - themeMode drives the theme (changing it recomposes the whole tree),
@@ -110,6 +133,7 @@ private fun HeyClaudeApp(
                         capabilityStore = capabilityStore,
                         keySaved = keySaved,
                         talkback = talkback,
+                        assistLaunch = assistLaunch,
                         onOpenSettings = { navController.navigate("settings") },
                         onOpenCapabilities = { navController.navigate("capabilities") },
                         onOpenPermissions = { navController.navigate("permissions") },
@@ -155,6 +179,7 @@ private fun TalkScreen(
     capabilityStore: CapabilityStore,
     keySaved: Boolean,
     talkback: Boolean,
+    assistLaunch: Int,
     onOpenSettings: () -> Unit,
     onOpenCapabilities: () -> Unit,
     onOpenPermissions: () -> Unit,
@@ -241,6 +266,14 @@ private fun TalkScreen(
             Manifest.permission.RECORD_AUDIO,
         ) == PackageManager.PERMISSION_GRANTED
         if (granted) beginListening() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    // Default-assistant hands-free path: when launched via the assist gesture / voice
+    // button, jump straight into listening (asking for the mic grant if needed). Keyed
+    // on the launch counter so each fresh assist invoke re-triggers; guarded so it
+    // doesn't fire on a normal launch (counter 0) or interrupt an in-flight turn.
+    LaunchedEffect(assistLaunch) {
+        if (assistLaunch > 0 && keySaved && !listening && !loading) onMicTap()
     }
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)

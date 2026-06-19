@@ -218,4 +218,17 @@ personal use.
 - App-only. No proxy, gateway, or server.
 - Don't assume a real background hotword. Core UX is gesture/tap.
 - Request per-tool permissions (alarm, calendar, SMS, …) lazily, on first use.
+- **Special app-access permissions need explicit user guidance, not a request dialog.**
+  Overlay (`SYSTEM_ALERT_WINDOW` / "Display over other apps") and the assistant role are
+  *appops / special access*, not normal or runtime permissions. Declaring them in the
+  manifest only makes the app *eligible* (it shows up in the relevant Settings list) — it
+  does NOT auto-grant at install, and there is NO `requestPermissions()` runtime dialog.
+  So the app must (a) **deep-link** the user to the right settings screen
+  (`ACTION_MANAGE_OVERLAY_PERMISSION`; the assistant picker via `ACTION_VOICE_INPUT_SETTINGS`)
+  *with an explanation of why it's needed*, and (b) **verify at runtime** before relying on
+  it (`Settings.canDrawOverlays()`, role/assistant check). Treat it as an onboarding step,
+  and note overlay access is scrutinized by Play and narrowed each Android version (e.g.
+  Android 15 also requires a visible overlay window for the background-activity-launch
+  exemption) — prefer the assistant-role/`VoiceInteractionService` path over `SYSTEM_ALERT_WINDOW`
+  where possible.
 - Keep spoken replies short — long TTS is the worst UX.

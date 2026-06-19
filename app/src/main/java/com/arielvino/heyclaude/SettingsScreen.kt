@@ -20,9 +20,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
@@ -45,6 +48,7 @@ fun SettingsScreen(
     onKeySavedChange: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     var keyInput by remember { mutableStateOf(keyStore.apiKey.orEmpty()) }
     var keySaved by remember { mutableStateOf(keyStore.hasKey()) }
 
@@ -111,6 +115,26 @@ fun SettingsScreen(
                 checked = talkback,
                 onCheckedChange = onTalkbackChange,
             )
+        }
+
+        CollapsibleSection("Device assistant") {
+            Text(
+                "Make HeyClaude your phone's assistant app. Then the assist gesture " +
+                    "(long-press home, or the power/side key — depends on your phone) opens " +
+                    "HeyClaude straight into listening mode, hands-free.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Button(onClick = {
+                // Opens the system "Assist & voice input" screen where the default
+                // assistant app is chosen; falls back to top-level Settings on OEMs
+                // that don't expose that action.
+                val opened = runCatching {
+                    context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS))
+                }.isSuccess
+                if (!opened) {
+                    runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS)) }
+                }
+            }) { Text("Open assistant settings") }
         }
     }
 }
